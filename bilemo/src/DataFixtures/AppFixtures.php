@@ -51,7 +51,7 @@ class AppFixtures extends Fixture
         }
 
         //Users
-        for($i=0;$i<50;$i++){
+        for($i=0;$i<6000;$i++){
             $user = new User();
             $user->setEmail($faker->email)
                 ->setName($faker->name)

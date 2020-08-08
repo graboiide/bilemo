@@ -5,6 +5,8 @@ namespace App\Controller;
 
 
 use App\Repository\UserRepository;
+use Knp\Component\Pager\Pagination\PaginationInterface;
+use Knp\Component\Pager\PaginatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -13,9 +15,9 @@ class BackController extends AbstractController
 {
     protected $serializer;
     protected $params ;
+    protected $request;
     public function __construct(SerializerInterface $serializer )
     {
-
         $this->serializer = $serializer;
     }
 
@@ -36,17 +38,22 @@ class BackController extends AbstractController
         return $userAssoc;
     }
 
-    public function getEntities(Request $request,$repo)
+    /**
+     * Recupere les données en fonction du numéro de page
+     * @param PaginatorInterface $paginator
+     * @param $data
+     * @param Request $request
+     * @return PaginationInterface
+     */
+    protected function dataForPage(PaginatorInterface $paginator,$data,Request $request)
     {
-        $page = $request->get('p')?? 1;
-        //empeche les nombres de négatif sans utiliser de if
-        $page = max(1,$page);
-        $limit = $request->get('limit')?? null;
-        $order = $request->get('order')?[$request->get('order')=>"DESC"] : [];
-        if(is_null($limit) && !is_null($request->get('p')))
+        $limit=count($data);
+        //pagination
+        if(!is_null($request->get('page')))
             $limit = 10;
-        /**@var UserRepository $repo*/
+        return $paginator->paginate($data,$request->query->getInt('page',1),$request->query->getInt('page_size',$limit));
 
-        return $repo->findBy([],$order,$limit,($page-1)*$limit);
     }
+
+
 }
