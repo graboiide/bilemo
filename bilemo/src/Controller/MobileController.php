@@ -7,11 +7,15 @@ use App\Repository\MobileRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
+use Knp\Component\Pager\PaginatorInterface;
+use Psr\Cache\InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * Class MobileController
@@ -31,20 +35,31 @@ class MobileController extends BackController
 
     /**
      * @Route(name="api_mobile_collection_get", methods={"GET"})
+     * @param MobileRepository $mobileRepository
+     * @param Request $request
+     * @param CacheInterface $cache
+     * @param PaginatorInterface $paginator
      * @return JsonResponse
+     * @throws InvalidArgumentException
      */
-    public function collection(MobileRepository $mobileRepository,Request $request):JsonResponse
+    public function collection(MobileRepository $mobileRepository,Request $request,CacheInterface $cache,PaginatorInterface $paginator):JsonResponse
     {
-        $mobiles = $this->getEntities($request,$mobileRepository);
-        $all = [];
-        foreach ($mobiles as $mobile){
-            $all[]= $this->links($mobile,$this->params,false,null);
-        }
+        //retourne le cache de la liste avec les links ou remet en cache au bout de 1 heures
+        $values = $cache->get('collection-mobile',function (ItemInterface $item) use($mobileRepository){
+            $item->expiresAfter(3600);
+            $mobiles = $mobileRepository->findAll();
+            $all = [];
+            foreach ($mobiles as $mobile){
+                $all[]= $this->links($mobile,$this->params,false,null);
+            }
+            return $all;
+        });
 
 
         return new JsonResponse(
-            $this->serializer->serialize($all,"json",['groups'=>'users'])
-            ,JsonResponse::HTTP_OK,[],true);
+            $this->serializer->serialize(
+                $this->dataForPage($paginator,$values,$request),"json",['groups'=>'users']),JsonResponse::HTTP_OK,[],true
+        );
     }
 
 

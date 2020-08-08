@@ -7,12 +7,18 @@ use App\Entity\User;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
+
+use Knp\Component\Pager\Paginator;
+use Knp\Component\Pager\PaginatorInterface;
+use Psr\Cache\InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * Class UserController
@@ -21,10 +27,12 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
  */
 class UserController extends BackController
 {
+    private $cache;
 
-   public function __construct(SerializerInterface $serializer)
+   public function __construct(SerializerInterface $serializer,CacheInterface $cache)
    {
        parent::__construct($serializer);
+       $this->cache = $cache;
        $this->params = [
            "self"=>["route"=>"api_users_items_get","id"=>true],
            "collection"=>["route"=>"api_users_collection_get","id"=>false],
@@ -37,17 +45,26 @@ class UserController extends BackController
      * @Route(name="api_users_collection_get", methods={"GET"})
      * @param Request $request
      * @param UserRepository $userRepository
+     * @param PaginatorInterface $paginator
      * @return JsonResponse
+     * @throws InvalidArgumentException
      */
-    public function collection(Request $request,UserRepository $userRepository):JsonResponse
+    public function collection(Request $request,UserRepository $userRepository,PaginatorInterface $paginator):JsonResponse
     {
-        $users = $this->getEntities($request,$userRepository);
-        $all = [];
-        foreach ($users as $user){
-            $all[]= $this->links($user,$this->params,false,'users');
-        }
+
+        $values = $this->cache->get('collection_users',
+            function (ItemInterface $item)use($userRepository){
+                $item->expiresAfter(3600);
+                $users = $userRepository->findBy(['client'=>$this->getUser()]);
+                $all = [];
+                foreach ($users as $user){
+                    $all[]= $this->links($user,$this->params,false,'users');
+                }
+                return $all;
+        });
+
         return new JsonResponse(
-            $this->serializer->serialize($all,"json",['groups'=>'users'])
+            $this->serializer->serialize($this->dataForPage($paginator,$values,$request),"json",['groups'=>'users'])
             ,JsonResponse::HTTP_OK,[],true);
     }
 
@@ -55,7 +72,6 @@ class UserController extends BackController
     /**
      * @Route("/{id}",name="api_users_items_get", methods={"GET"})
      * @param $id
-     * @param EntityManagerInterface $entityManager
      * @param UserRepository $userRepository
      * @return JsonResponse
      */
@@ -73,7 +89,9 @@ class UserController extends BackController
      * @param EntityManagerInterface $entityManager
      * @param Request $request
      * @param ValidatorInterface $validator
+     * @param CacheInterface $cache
      * @return JsonResponse
+     * @throws InvalidArgumentException
      */
     public function post( EntityManagerInterface $entityManager,Request $request,ValidatorInterface $validator):JsonResponse
     {
@@ -87,15 +105,18 @@ class UserController extends BackController
 
         $entityManager->persist($user);
         $entityManager->flush();
+        $this->cache->delete('collection_users');
         return new JsonResponse([],JsonResponse::HTTP_CREATED);
     }
 
     /**
      * @Route("/{id}",name="api_users_collection_delete", methods={"DELETE"})
+     * @param User $user
      * @param EntityManagerInterface $entityManager
      * @param UserRepository $userRepository
      * @param Request $request
      * @return JsonResponse
+     * @throws InvalidArgumentException
      */
     public function delete(User $user,EntityManagerInterface $entityManager,UserRepository $userRepository,Request $request):JsonResponse
     {
@@ -105,7 +126,7 @@ class UserController extends BackController
 
         $entityManager->remove($user);
         $entityManager->flush();
-
+        $this->cache->delete('collection_users');
         return new JsonResponse([],JsonResponse::HTTP_OK);
     }
 
