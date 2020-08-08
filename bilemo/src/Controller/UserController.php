@@ -3,45 +3,51 @@
 namespace App\Controller;
 
 use App\Entity\User;
-use App\Repository\MobileRepository;
+
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Component\Validator\ConstraintViolation;
-use Symfony\Component\Validator\ConstraintViolationList;
-use Symfony\Component\Validator\Validation;
+
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
- * Class MobileController
+ * Class UserController
  * @package App\Controller
  * @Route("/api/users")
  */
-class UserController extends AbstractController
+class UserController extends BackController
 {
-    private $serializer;
-    public function __construct(SerializerInterface $serializer )
-    {
-        $this->serializer = $serializer;
-    }
+
+   public function __construct(SerializerInterface $serializer)
+   {
+       parent::__construct($serializer);
+       $this->params = [
+           "self"=>["route"=>"api_users_items_get","id"=>true],
+           "collection"=>["route"=>"api_users_collection_get","id"=>false],
+           "add"=>["route"=>"api_users_collection_post","id"=>false],
+           "delete"=>["route"=>"api_users_collection_delete","id"=>true]
+       ];
+   }
 
     /**
      * @Route(name="api_users_collection_get", methods={"GET"})
-     * @param EntityManagerInterface $entityManager
+     * @param Request $request
+     * @param UserRepository $userRepository
      * @return JsonResponse
      */
-    public function collection(EntityManagerInterface $entityManager,UserRepository $userRepository):JsonResponse
+    public function collection(Request $request,UserRepository $userRepository):JsonResponse
     {
+        $users = $this->getEntities($request,$userRepository);
         $all = [];
-        foreach ($userRepository->findBy(['client'=>$this->getUser()]) as $user){
-            $all[]= $this->links($user,false);
+        foreach ($users as $user){
+            $all[]= $this->links($user,$this->params,false,'users');
         }
         return new JsonResponse(
-           $this->serializer->serialize($all,"json",['groups'=>'users'])
+            $this->serializer->serialize($all,"json",['groups'=>'users'])
             ,JsonResponse::HTTP_OK,[],true);
     }
 
@@ -56,7 +62,7 @@ class UserController extends AbstractController
     public function item($id,UserRepository $userRepository):JsonResponse
     {
         return new JsonResponse(
-            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id])),
+            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params),
             JsonResponse::HTTP_OK,[],
             true);
     }
@@ -75,9 +81,9 @@ class UserController extends AbstractController
         /***@var User $user*/
         $user = $this->serializer->deserialize($request->getContent(),User::class,'json');
         $user->setClient($this->getUser());
-       if($validator->validate($user)->count() > 0){
-           return new JsonResponse([],JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
-       }
+        if($validator->validate($user)->count() > 0){
+            return new JsonResponse([],JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $entityManager->persist($user);
         $entityManager->flush();
@@ -103,22 +109,6 @@ class UserController extends AbstractController
         return new JsonResponse([],JsonResponse::HTTP_OK);
     }
 
-    function links(User $user,$json = true)
-    {
 
-        $userJson = $this->serializer->serialize($user,'json',['groups'=>'users']);
-        $userAssoc = json_decode($userJson,true);
-        //dd($userAssoc);
-        $userAssoc['_link'] = [
-            'self'=>$this->generateUrl("api_users_items_get",['id'=>$user->getId()]),
-            "collection"=>$this->generateUrl("api_users_collection_get"),
-            'add'=>$this->generateUrl("api_users_collection_post"),
-            'delete'=>$this->generateUrl("api_users_collection_delete",['id'=>$user->getId()])
-        ];
-
-        if($json)
-            return json_encode($userAssoc,JSON_FORCE_OBJECT);
-        return $userAssoc;
-    }
 
 }
