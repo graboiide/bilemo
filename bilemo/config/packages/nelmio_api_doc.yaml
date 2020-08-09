@@ -1,0 +1,22 @@
+nelmio_api_doc:
+    models: { use_jms: false }
+    documentation:
+        path_patterns:
+            - ^/api(?!/doc$)
+        info:
+
+            title: Bilemo
+            description: API
+            version: 1.0.0
+        securityDefinitions:
+            Bearer:
+                type: apiKey
+                description: 'Value: Bearer {jwt}'
+                name: Authorization
+                in: header
+
+
+    areas: # to filter documented areas
+
+        path_patterns:
+            - ^/api(?!/doc$) # Accepts routes under /api except /api/doc

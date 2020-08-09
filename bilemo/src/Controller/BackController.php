@@ -23,6 +23,7 @@ class BackController extends AbstractController
 
     function links($entity,$params,$json = true,$groups = null)
     {
+
         $userJson = $this->serializer->serialize($entity,'json',['groups'=>$groups]);
         $userAssoc = json_decode($userJson,true);
         $links = [];

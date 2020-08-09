@@ -10,6 +10,9 @@ use Doctrine\ORM\EntityManagerInterface;
 
 use Knp\Component\Pager\Paginator;
 use Knp\Component\Pager\PaginatorInterface;
+use Nelmio\ApiDocBundle\Annotation\Model;
+use Nelmio\ApiDocBundle\Annotation\Security;
+use Swagger\Annotations as SWG;
 use Psr\Cache\InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -42,7 +45,26 @@ class UserController extends BackController
    }
 
     /**
+     * Retourne une liste d'utilisateurs
      * @Route(name="api_users_collection_get", methods={"GET"})
+     * @SWG\Response(
+     *     response=200,
+     *     description="Retourne la liste des utilisateurs",
+     * )
+     * @SWG\Parameter(
+     *     name="page",
+     *     in="query",
+     *     type="integer",
+     *     description="Page"
+     * )
+     * @SWG\Parameter(
+     *     name="page_size",
+     *     in="query",
+     *     type="integer",
+     *     description="nombre utilisateurs par page"
+     * )
+     * @SWG\Tag(name="users")
+     * @Security(name="Bearer")
      * @param Request $request
      * @param UserRepository $userRepository
      * @param PaginatorInterface $paginator
@@ -70,7 +92,21 @@ class UserController extends BackController
 
 
     /**
+     * Retourne un utilisateur
      * @Route("/{id}",name="api_users_items_get", methods={"GET"})
+     *  @SWG\Response(
+     *     response=200,
+     *     description="Retourne un utilisateur",
+     *
+     * )
+     * @SWG\Parameter(
+     *     name="id",
+     *     in="path",
+     *     type="integer",
+     *     description="Identifiant de l'utilisateur"
+     * )
+     * @SWG\Tag(name="users")
+     * @Security(name="Bearer")
      * @param $id
      * @param UserRepository $userRepository
      * @return JsonResponse
@@ -78,18 +114,40 @@ class UserController extends BackController
     public function item($id,UserRepository $userRepository):JsonResponse
     {
         return new JsonResponse(
-            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params),
+            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params,'true','users'),
             JsonResponse::HTTP_OK,[],
             true);
     }
 
 
     /**
+     * Ajoute un utilisateur
      * @Route(name="api_users_collection_post", methods={"POST"})
+     *  @SWG\Response(
+     *     response=200,
+     *     description="Ajoute un utilisateur",
+     *
+     * )
+     * @SWG\Parameter(
+     *     name="body",
+     *          in="body",
+     *          description="JSON Payload",
+     *          required=true,
+     *          type="json",
+     *          format="application/json",
+     *     @SWG\Schema(
+     *              type="object",
+     *              @SWG\Property(property="name", type="string", example="Lisa"),
+     *              @SWG\Property(property="last_name", type="string", example="Bob"),
+     *              @SWG\Property(property="avatar", type="string", example="http:www.avatar.com/avatar.png"),
+     *              @SWG\Property(property="email", type="string", example="test@test.fr"),
+     *          )
+     * )
+     * @SWG\Tag(name="users")
+     * @Security(name="Bearer")
      * @param EntityManagerInterface $entityManager
      * @param Request $request
      * @param ValidatorInterface $validator
-     * @param CacheInterface $cache
      * @return JsonResponse
      * @throws InvalidArgumentException
      */
@@ -110,15 +168,27 @@ class UserController extends BackController
     }
 
     /**
+     * Supprime un utilisateur
      * @Route("/{id}",name="api_users_collection_delete", methods={"DELETE"})
+     * @SWG\Response(
+     *     response=200,
+     *     description="Supprime un utilisateur",
+     *
+     * )
+     * @SWG\Parameter(
+     *     name="id",
+     *     in="query",
+     *     type="integer",
+     *     description="Identifiant de l'utilisateur à supprimer"
+     * )
+     * @SWG\Tag(name="users")
+     * @Security(name="Bearer")
      * @param User $user
      * @param EntityManagerInterface $entityManager
-     * @param UserRepository $userRepository
-     * @param Request $request
      * @return JsonResponse
      * @throws InvalidArgumentException
      */
-    public function delete(User $user,EntityManagerInterface $entityManager,UserRepository $userRepository,Request $request):JsonResponse
+    public function delete(User $user,EntityManagerInterface $entityManager):JsonResponse
     {
 
         if($user->getClient() !== $this->getUser())
