@@ -4,7 +4,19 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
-
+    nelmio_api_doc:
+        documentation:
+            securityDefinitions:
+                api_key:
+                    type: apiKey
+                    description: "Used by logistics companies"
+                    name: X-Auth-Token
+                    in: header
+                api_key_and_ticket:
+                    type: apiKey
+                    description: "Used by customers"
+                    name: X-Auth-Token
+                    in: header
 services:
     # default configuration for services in *this* file
     _defaults:

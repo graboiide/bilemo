@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use App\Repository\MobileRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Swagger\Annotations as SWG;
 
 /**
  * @ORM\Entity(repositoryClass=MobileRepository::class)
@@ -14,6 +15,7 @@ class Mobile
      * @ORM\Id()
      * @ORM\GeneratedValue()
      * @ORM\Column(type="integer")
+     * @SWG\Property(description="Identifiant unique du mobile")
      */
     private $id;
 
