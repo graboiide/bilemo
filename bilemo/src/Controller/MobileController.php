@@ -15,6 +15,7 @@ use Swagger\Annotations as SWG;
 use Psr\Cache\InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
 use Symfony\Component\Serializer\SerializerInterface;
@@ -64,29 +65,25 @@ class MobileController extends BackController
      * @param CacheInterface $cache
      * @param PaginatorInterface $paginator
      * @return JsonResponse
-     * @throws InvalidArgumentException
-     *
-     *
      */
-    public function collection(MobileRepository $mobileRepository,Request $request,CacheInterface $cache,PaginatorInterface $paginator):JsonResponse
+    public function collection(MobileRepository $mobileRepository,Request $request,CacheInterface $cache,PaginatorInterface $paginator):Response
     {
 
         //retourne le cache de la liste avec les links ou remet en cache au bout de 1 heures
-        $values = $cache->get('collection-mobile',function (ItemInterface $item) use($mobileRepository){
-            $item->expiresAfter(3600);
-            $mobiles = $mobileRepository->findAll();
-            $all = [];
-            foreach ($mobiles as $mobile){
-                $all[]= $this->links($mobile,$this->params,false,null);
-            }
-            return $all;
-        });
 
+        $mobiles = $mobileRepository->findAll();
+        $all = [];
+        foreach ($mobiles as $mobile){
+            $all[]= $this->links($mobile,$this->params,false,null);
+        }
+        $values =$all;
 
-        return new JsonResponse(
-            $this->serializer->serialize(
-                $this->dataForPage($paginator,$values,$request),"json",['groups'=>'users']),JsonResponse::HTTP_OK,[],true
-        );
+        $response = new Response( $this->serializer->serialize(
+            $this->dataForPage($paginator,$values,$request),"json"),200,[
+            'Content-Type' => 'application/json'
+        ]);
+        return $this->cacheHttp($response,$request);
+
     }
 
 
@@ -106,15 +103,19 @@ class MobileController extends BackController
      * )
      * @SWG\Tag(name="mobiles")
      * @Security(name="Bearer")
-     * @return JsonResponse
+     * @param Mobile|null $mobile
+     * @param Request $request
+     * @return Response
      */
-    public function item(Mobile $mobile=null):JsonResponse
+    public function item(Mobile $mobile=null,Request $request):Response
     {
         if(is_null($mobile))
             return new JsonResponse("item not found",JsonResponse::HTTP_NOT_FOUND);
-        return new JsonResponse(
-            $this->links($mobile,$this->params)
-            ,JsonResponse::HTTP_OK,[],true);
+
+        $response = new Response( $this->links($mobile,$this->params),Response::HTTP_OK,[
+            'Content-Type' => 'application/json'
+        ]);
+        return $this->cacheHttp($response,$request);
     }
 
 

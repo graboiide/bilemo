@@ -16,6 +16,7 @@ use Swagger\Annotations as SWG;
 use Psr\Cache\InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 
@@ -71,23 +72,21 @@ class UserController extends BackController
      * @return JsonResponse
      * @throws InvalidArgumentException
      */
-    public function collection(Request $request,UserRepository $userRepository,PaginatorInterface $paginator):JsonResponse
+    public function collection(Request $request,UserRepository $userRepository,PaginatorInterface $paginator):Response
     {
 
-        $values = $this->cache->get('collection_users',
-            function (ItemInterface $item)use($userRepository){
-                $item->expiresAfter(3600);
-                $users = $userRepository->findBy(['client'=>$this->getUser()]);
-                $all = [];
-                foreach ($users as $user){
-                    $all[]= $this->links($user,$this->params,false,'users');
-                }
-                return $all;
-        });
+        $users = $userRepository->findBy(['client'=>$this->getUser()]);
+        $all = [];
+        foreach ($users as $user){
+            $all[]= $this->links($user,$this->params,false,'users');
+        }
+        $values = $all;
 
-        return new JsonResponse(
-            $this->serializer->serialize($this->dataForPage($paginator,$values,$request),"json",['groups'=>'users'])
-            ,JsonResponse::HTTP_OK,[],true);
+        $response = new Response( $this->serializer->serialize(
+            $this->dataForPage($paginator,$values,$request),"json",['groups'=>'users']),Response::HTTP_OK,[
+            'Content-Type' => 'application/json'
+        ]);
+        return $this->cacheHttp($response,$request);
     }
 
 
@@ -111,12 +110,17 @@ class UserController extends BackController
      * @param UserRepository $userRepository
      * @return JsonResponse
      */
-    public function item($id,UserRepository $userRepository):JsonResponse
+    public function item($id,UserRepository $userRepository,Request $request):Response
     {
-        return new JsonResponse(
+         new JsonResponse(
             $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params,'true','users'),
             JsonResponse::HTTP_OK,[],
             true);
+        $response = new Response(
+            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params,'true','users'),
+
+            Response::HTTP_OK,['Content-Type' => 'application/json']);
+        return $this->cacheHttp($response,$request);
     }
 
 
@@ -157,14 +161,22 @@ class UserController extends BackController
         /***@var User $user*/
         $user = $this->serializer->deserialize($request->getContent(),User::class,'json');
         $user->setClient($this->getUser());
-        if($validator->validate($user)->count() > 0){
-            return new JsonResponse([],JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        $errors = $validator->validate($user);
+        //cas erreurs
+        if(count($errors) > 0){
+            $messages = [];
+            foreach ($errors as $error){
+                $messages[$error->getPropertyPath()][] = $error->getMessage();
+            }
+            return new JsonResponse(
+                $messages,
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $entityManager->persist($user);
         $entityManager->flush();
         $this->cache->delete('collection_users');
-        return new JsonResponse([],JsonResponse::HTTP_CREATED);
+        return new JsonResponse(["code"=>JsonResponse::HTTP_CREATED,"message"=>"Utilisateur ajouter avec succes"],JsonResponse::HTTP_CREATED);
     }
 
     /**

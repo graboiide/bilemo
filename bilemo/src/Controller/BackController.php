@@ -9,6 +9,7 @@ use Knp\Component\Pager\Pagination\PaginationInterface;
 use Knp\Component\Pager\PaginatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Serializer\SerializerInterface;
 
 class BackController extends AbstractController
@@ -54,6 +55,26 @@ class BackController extends AbstractController
             $limit = 10;
         return $paginator->paginate($data,$request->query->getInt('page',1),$request->query->getInt('page_size',$limit));
 
+    }
+
+    /**
+     * Active le httpcache de symfony avec validation depuis le Etag
+     * @param Response $response
+     * @param Request $request
+     *
+     * @return Response
+     */
+    protected function cacheHttp(Response $response,Request $request)
+    {
+        $response->setPublic();
+
+        $response->headers->addCacheControlDirective('must-revalidate', true);
+
+        $response->setEtag(md5($response->getContent()));
+        //compare l'etag
+        $response->isNotModified($request);
+        //Si pas modifié 304 sinon 200
+        return $response;
     }
 
 
