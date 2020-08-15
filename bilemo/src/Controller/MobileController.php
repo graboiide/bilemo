@@ -57,6 +57,20 @@ class MobileController extends BackController
      *     type="integer",
      *     description="nombre de mobiles par pages"
      * )
+     * @SWG\Parameter(
+     *     name="order",
+     *     in="query",
+     *     type="string",
+     *     description="Ordre croissant (ASC) ou décroissant (DESC)",
+     *     default="ASC"
+     * )
+     * * @SWG\Parameter(
+     *     name="filter",
+     *     in="query",
+     *     type="string",
+     *     description="Filtrer sur un attribut (modelName,modelRef,price,cover,description)",
+     *     default="id"
+     * )
      *
      * @SWG\Tag(name="mobiles")
      * @Security(name="Bearer")
@@ -69,17 +83,8 @@ class MobileController extends BackController
     public function collection(MobileRepository $mobileRepository,Request $request,CacheInterface $cache,PaginatorInterface $paginator):Response
     {
 
-        //retourne le cache de la liste avec les links ou remet en cache au bout de 1 heures
-
-        $mobiles = $mobileRepository->findAll();
-        $all = [];
-        foreach ($mobiles as $mobile){
-            $all[]= $this->links($mobile,$this->params,false,null);
-        }
-        $values =$all;
-
         $response = new Response( $this->serializer->serialize(
-            $this->dataForPage($paginator,$values,$request),"json"),200,[
+            $this->getData($request,$mobileRepository),"json"),200,[
             'Content-Type' => 'application/json'
         ]);
         return $this->cacheHttp($response,$request);
@@ -93,6 +98,11 @@ class MobileController extends BackController
      * @SWG\Response(
      *     response=200,
      *     description="Retourne un mobile",
+     *
+     * )
+     * @SWG\Response(
+     *     response=404,
+     *     description="Mobile introuvable",
      *
      * )
      * @SWG\Parameter(
@@ -110,7 +120,7 @@ class MobileController extends BackController
     public function item(Mobile $mobile=null,Request $request):Response
     {
         if(is_null($mobile))
-            return new JsonResponse("item not found",JsonResponse::HTTP_NOT_FOUND);
+            return new JsonResponse(["code"=>JsonResponse::HTTP_NOT_FOUND],JsonResponse::HTTP_NOT_FOUND);
 
         $response = new Response( $this->links($mobile,$this->params),Response::HTTP_OK,[
             'Content-Type' => 'application/json'

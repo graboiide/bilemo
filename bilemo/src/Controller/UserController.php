@@ -33,10 +33,12 @@ class UserController extends BackController
 {
     private $cache;
 
+
    public function __construct(SerializerInterface $serializer,CacheInterface $cache)
    {
        parent::__construct($serializer);
        $this->cache = $cache;
+       $this->group = 'users';
        $this->params = [
            "self"=>["route"=>"api_users_items_get","id"=>true],
            "collection"=>["route"=>"api_users_collection_get","id"=>false],
@@ -64,26 +66,31 @@ class UserController extends BackController
      *     type="integer",
      *     description="nombre utilisateurs par page"
      * )
+     * * @SWG\Parameter(
+     *     name="order",
+     *     in="query",
+     *     type="string",
+     *     description="Ordre croissant (ASC) ou décroissant (DESC)",
+     *     default="ASC"
+     * )
+     * * @SWG\Parameter(
+     *     name="filter",
+     *     in="query",
+     *     type="string",
+     *     description="Filtrer sur un attribut (name,lastName,avatar,email)",
+     *     default="id"
+     * )
      * @SWG\Tag(name="users")
      * @Security(name="Bearer")
      * @param Request $request
      * @param UserRepository $userRepository
      * @param PaginatorInterface $paginator
      * @return JsonResponse
-     * @throws InvalidArgumentException
      */
     public function collection(Request $request,UserRepository $userRepository,PaginatorInterface $paginator):Response
     {
-
-        $users = $userRepository->findBy(['client'=>$this->getUser()]);
-        $all = [];
-        foreach ($users as $user){
-            $all[]= $this->links($user,$this->params,false,'users');
-        }
-        $values = $all;
-
         $response = new Response( $this->serializer->serialize(
-            $this->dataForPage($paginator,$values,$request),"json",['groups'=>'users']),Response::HTTP_OK,[
+            $this->getData($request,$userRepository,['client'=>$this->getUser()]),"json",['groups'=>'users']),Response::HTTP_OK,[
             'Content-Type' => 'application/json'
         ]);
         return $this->cacheHttp($response,$request);
@@ -96,6 +103,11 @@ class UserController extends BackController
      *  @SWG\Response(
      *     response=200,
      *     description="Retourne un utilisateur",
+     *
+     * )
+     *  @SWG\Response(
+     *     response=404,
+     *     description="Utilisateur introuvable",
      *
      * )
      * @SWG\Parameter(
@@ -112,14 +124,14 @@ class UserController extends BackController
      */
     public function item($id,UserRepository $userRepository,Request $request):Response
     {
-         new JsonResponse(
-            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params,'true','users'),
-            JsonResponse::HTTP_OK,[],
-            true);
-        $response = new Response(
-            $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params,'true','users'),
+        $user = $this->links($userRepository->findOneBy(['client'=>$this->getUser(),'id'=>$id]),$this->params,'true');
+        if(is_null($user))
+            return new JsonResponse([
+                "code"=>JsonResponse::HTTP_NOT_FOUND,
+                "message"=>"Utilsateur pour le client ". $this->getUser()->getUsername()." non trouvé"],
+                JsonResponse::HTTP_NOT_FOUND);
 
-            Response::HTTP_OK,['Content-Type' => 'application/json']);
+        $response = new Response($user,Response::HTTP_OK,['Content-Type' => 'application/json']);
         return $this->cacheHttp($response,$request);
     }
 
@@ -128,8 +140,13 @@ class UserController extends BackController
      * Ajoute un utilisateur
      * @Route(name="api_users_collection_post", methods={"POST"})
      *  @SWG\Response(
-     *     response=200,
-     *     description="Ajoute un utilisateur",
+     *     response=201,
+     *     description="Utilsateur ajouter",
+     *
+     * )
+     *  @SWG\Response(
+     *     response=422,
+     *     description="Erreur de validation ",
      *
      * )
      * @SWG\Parameter(
@@ -185,11 +202,18 @@ class UserController extends BackController
      * @SWG\Response(
      *     response=200,
      *     description="Supprime un utilisateur",
-     *
+     * )
+     * @SWG\Response(
+     *     response=403,
+     *     description="Suppression non autorisé",
+     * )
+     *  @SWG\Response(
+     *     response=404,
+     *     description="L'utilisateur n'existe pas en base de donnée",
      * )
      * @SWG\Parameter(
      *     name="id",
-     *     in="query",
+     *     in="path",
      *     type="integer",
      *     description="Identifiant de l'utilisateur à supprimer"
      * )
@@ -200,16 +224,20 @@ class UserController extends BackController
      * @return JsonResponse
      * @throws InvalidArgumentException
      */
-    public function delete(User $user,EntityManagerInterface $entityManager):JsonResponse
+    public function delete(User $user = null,EntityManagerInterface $entityManager):JsonResponse
     {
-
+        if(is_null($user))
+            return new JsonResponse(["code"=>JsonResponse::HTTP_NOT_FOUND,"message"=>"Aucuns utilsateur avec cet identifiant"],JsonResponse::HTTP_NOT_FOUND);
         if($user->getClient() !== $this->getUser())
-            return new JsonResponse([],JsonResponse::HTTP_FORBIDDEN);
+            return new JsonResponse([
+                "code"=>JsonResponse::HTTP_FORBIDDEN,
+                "message"=>"Vous n'avez pas l'autorisation pour supprimer cet utilisateur"],
+                JsonResponse::HTTP_FORBIDDEN);
 
         $entityManager->remove($user);
         $entityManager->flush();
         $this->cache->delete('collection_users');
-        return new JsonResponse([],JsonResponse::HTTP_OK);
+        return new JsonResponse(["code"=>JsonResponse::HTTP_OK,"message"=>"L'utilisateur ".$user->getName()." à bien été supprimé"],JsonResponse::HTTP_OK);
     }
 
 
