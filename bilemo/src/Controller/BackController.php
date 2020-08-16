@@ -45,7 +45,10 @@ class BackController extends AbstractController
 
     protected function getData(Request $request,ServiceEntityRepository $repo,$criteria = [])
     {
-        $limit = $request->query->getInt('page_size',$repo->count([]));
+        if(is_null($request->query->get('page')))
+            $limit = $repo->count([]);
+        else
+            $limit = $request->query->getInt('page_size',10);
         $page = max(0,$request->query->getInt('page',1));
         $order = $request->query->getAlpha('order','ASC');
         $filter = $request->query->getAlpha('filter','id');
