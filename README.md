@@ -41,7 +41,7 @@ php bin/console doctrine:fixtures:load
 
 Appelez la route /api/login_check avec dans le corp de la page le json
 ```json
-{"username":"adresse@mail. ,"password":"mot_de_passe_client"}
+{"username":"adresse@mail.client" ,"password":"mot_de_passe_client"}
 ```
 
 Copiez coller le token obtenu précédé du mot Bearer
